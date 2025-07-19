@@ -1,0 +1,114 @@
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "DZAimGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Aimbot Button
+local aimbotButton = Instance.new("TextButton")
+aimbotButton.Size = UDim2.new(0, 130, 0, 50)
+aimbotButton.Position = UDim2.new(0.5, -65, 0.5, -25)
+aimbotButton.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+aimbotButton.Text = "DZAim: OFF"
+aimbotButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+aimbotButton.TextScaled = true
+aimbotButton.Font = Enum.Font.Code
+aimbotButton.Active = true
+aimbotButton.Draggable = true
+aimbotButton.BorderSizePixel = 2
+aimbotButton.BorderColor3 = Color3.fromRGB(0, 255, 0)
+aimbotButton.Parent = gui
+
+-- Aimbot Vars
+local isAimbotOn = false
+local lockedTarget = nil
+local box = nil
+
+-- CONFIG
+local SMOOTHNESS = 0.5
+local PREDICTION_TIME = 0.1294563910134472211955
+local HEAD_Y_OFFSET = 0.09
+
+-- Find Nearest Player
+local function getNearestPlayer()
+	local myChar = player.Character
+	if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return nil end
+
+	local nearest, shortest = nil, math.huge
+
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player and other.Character and other.Character:FindFirstChild("HumanoidRootPart") and other.Character:FindFirstChild("Head") then
+			local dist = (myChar.HumanoidRootPart.Position - other.Character.HumanoidRootPart.Position).Magnitude
+			if dist < shortest then
+				shortest = dist
+				nearest = other
+			end
+		end
+	end
+
+	return nearest
+end
+
+-- Aim with Resolver
+local function aimAt(target)
+	if not target or not target.Character then return end
+	local head = target.Character:FindFirstChild("Head")
+	if not head then return end
+
+	local camPos = camera.CFrame.Position
+	local velocity = head.AssemblyLinearVelocity or Vector3.zero
+
+	-- Anti-lock fix: remove fake vertical motion
+	if math.abs(velocity.Y) > 60 then
+		velocity = Vector3.new(velocity.X, 0, velocity.Z)
+	end
+
+	local predictedPosition = head.Position + velocity * PREDICTION_TIME
+	predictedPosition = predictedPosition + Vector3.new(0, HEAD_Y_OFFSET, 0)
+
+	local direction = (predictedPosition - camPos).Unit
+	local goalCFrame = CFrame.new(camPos, camPos + direction)
+
+	camera.CFrame = camera.CFrame:Lerp(goalCFrame, SMOOTHNESS)
+end
+
+-- Toggle Aimbot
+aimbotButton.MouseButton1Click:Connect(function()
+	isAimbotOn = not isAimbotOn
+
+	if isAimbotOn then
+		aimbotButton.Text = "DZAim: ON"
+		lockedTarget = getNearestPlayer()
+
+		if lockedTarget and lockedTarget.Character then
+			box = Instance.new("SelectionBox")
+			box.Name = "DZAimBox"
+			box.Adornee = lockedTarget.Character
+			box.LineThickness = 0.1
+			box.Color3 = Color3.fromRGB(0, 255, 0)
+			box.SurfaceTransparency = 1
+			box.Parent = lockedTarget.Character
+		end
+
+		RunService:BindToRenderStep("DZAimLock", Enum.RenderPriority.Camera.Value + 1, function()
+			if lockedTarget and lockedTarget.Character and lockedTarget.Character:FindFirstChild("Head") then
+				aimAt(lockedTarget)
+			else
+				RunService:UnbindFromRenderStep("DZAimLock")
+				if box then box:Destroy() box = nil end
+				aimbotButton.Text = "DZAim: OFF"
+				isAimbotOn = false
+			end
+		end)
+	else
+		RunService:UnbindFromRenderStep("DZAimLock")
+		if box then box:Destroy() box = nil end
+		aimbotButton.Text = "DZAim: OFF"
+	end
+end)
