@@ -1,0 +1,162 @@
+-- Services
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- GUI
+local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "Dzbox"
+screenGui.ResetOnSpawn = false
+
+-- Main Frame (middle)
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 200, 0, 100)
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -100)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BorderColor3 = Color3.new(1, 1, 1)
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local texture = Instance.new("ImageLabel", mainFrame)
+texture.Size = UDim2.new(1, 0, 1, 0)
+texture.Position = UDim2.new(0, 0, 0, 0)
+texture.BackgroundTransparency = 1
+texture.Image = "rbxassetid://101438770334279"
+
+-- Toggle Button (left side)
+local toggleButton = Instance.new("ImageButton", screenGui)
+toggleButton.Size = UDim2.new(0, 150, 0, 50)
+toggleButton.Position = UDim2.new(0, 20, 0.5, -25)
+toggleButton.Image = "rbxassetid://101438770334279"
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+toggleButton.BorderColor3 = Color3.new(1, 1, 1)
+toggleButton.AutoButtonColor = true
+toggleButton.Active = true
+toggleButton.Draggable = true
+
+local toggleText = Instance.new("TextLabel", toggleButton)
+toggleText.Size = UDim2.new(1, 0, 1, 0)
+toggleText.BackgroundTransparency = 1
+toggleText.Text = "Show/Hide"
+toggleText.TextColor3 = Color3.new(1, 1, 1)
+toggleText.Font = Enum.Font.SourceSansBold
+toggleText.TextScaled = true
+
+-- Toggle GUI visibility
+toggleButton.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Input box
+local sizeInput = Instance.new("TextBox", mainFrame)
+sizeInput.Size = UDim2.new(0, 180, 0, 30)
+sizeInput.Position = UDim2.new(0, 10, 0, 10)
+sizeInput.PlaceholderText = "Enter hitbox size"
+sizeInput.TextColor3 = Color3.new(1, 1, 1)
+sizeInput.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+sizeInput.BorderColor3 = Color3.new(1, 1, 1)
+sizeInput.Text = ""
+
+-- Buttons
+local onButton = Instance.new("TextButton", mainFrame)
+onButton.Size = UDim2.new(0, 85, 0, 30)
+onButton.Position = UDim2.new(0, 10, 0, 50)
+onButton.Text = "On"
+onButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+onButton.TextColor3 = Color3.new(1, 1, 1)
+onButton.BorderColor3 = Color3.new(1, 1, 1)
+
+local offButton = Instance.new("TextButton", mainFrame)
+offButton.Size = UDim2.new(0, 85, 0, 30)
+offButton.Position = UDim2.new(0, 105, 0, 50)
+offButton.Text = "Off"
+offButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+offButton.TextColor3 = Color3.new(1, 1, 1)
+offButton.BorderColor3 = Color3.new(1, 1, 1)
+
+-- Notify
+local function notifySizeChange(size)
+	StarterGui:SetCore("SendNotification", {
+		Title = "Dzbox",
+		Text = "Hitbox set to: " .. tostring(size),
+		Duration = 2
+	})
+end
+
+-- Vars
+local active = false
+local currentSize = 5
+local defaultSize = Vector3.new(2, 2, 1)
+
+-- Apply hitbox
+local function applyHitbox(player)
+	if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		local part = player.Character.HumanoidRootPart
+		part.Size = Vector3.new(currentSize, currentSize, currentSize)
+		part.Transparency = 1
+		part.CanCollide = false
+
+		local adorn = part:FindFirstChild("SelectionBox") or Instance.new("SelectionBox")
+		adorn.Adornee = part
+		adorn.Parent = part
+		adorn.LineThickness = 0.1
+		adorn.Color3 = Color3.new(0, 0, 0)
+		adorn.SurfaceTransparency = 1
+	end
+end
+
+-- Reset hitbox
+local function resetHitbox(player)
+	if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		local part = player.Character.HumanoidRootPart
+		part.Size = defaultSize
+		local adorn = part:FindFirstChild("SelectionBox")
+		if adorn then adorn:Destroy() end
+	end
+end
+
+-- Button logic
+onButton.MouseButton1Click:Connect(function()
+	active = true
+end)
+
+offButton.MouseButton1Click:Connect(function()
+	active = false
+	for _, player in ipairs(Players:GetPlayers()) do
+		resetHitbox(player)
+	end
+	StarterGui:SetCore("SendNotification", {
+		Title = "Dzbox",
+		Text = "Hitbox reset to default.",
+		Duration = 2
+	})
+end)
+
+-- Main loop
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if active then
+			local newSize = tonumber(sizeInput.Text)
+			if newSize and newSize ~= currentSize then
+				currentSize = newSize
+				notifySizeChange(newSize)
+			end
+			for _, player in ipairs(Players:GetPlayers()) do
+				applyHitbox(player)
+			end
+		end
+	end
+end)
+
+-- Persistent on respawn
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function()
+		task.wait(1)
+		if active then
+			applyHitbox(plr)
+		else
+			resetHitbox(plr)
+		end
+	end)
+end)
